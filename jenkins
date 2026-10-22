@@ -1,5 +1,61 @@
 pipeline {
     agent any
+pipeline {
+    agent any
+    
+    environment {
+        // Change these to match your registry, repository, and credentials ID
+        REGISTRY_URL   = 'https://docker.io' // Default Docker Hub URL
+        IMAGE_NAME     = 'your-dockerhub-username/your-repo-name'
+        IMAGE_TAG      = "${env.BUILD_NUMBER}" // Uses the Jenkins build number as the tag
+        CREDENTIALS_ID = 'docker-hub-credentials' // The ID you set in Jenkins Credentials
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                // Pulls the code containing your application's Dockerfile
+                checkout scm
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                echo "Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}..."
+                script {
+                    // Builds the image using the Dockerfile in your repository root
+                    // (Ensure your repo has a file named 'Dockerfile')
+                    appImage = docker.build("${IMAGE_NAME}:${IMAGE_TAG}")
+                }
+            }
+        }
+
+        stage('Push to Registry') {
+            steps {
+                echo "Logging into registry and pushing image..."
+                script {
+                    // Securely logs into your registry using Jenkins credentials
+                    docker.withRegistry(REGISTRY_URL, CREDENTIALS_ID) {
+                        appImage.push()
+                        // Optional: Also push a 'latest' tag
+                        appImage.push('latest')
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo "Cleaning up local build images..."
+            script {
+                // Cleans up local images to save server disk space
+                sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true"
+                sh "docker rmi ${IMAGE_NAME}:latest || true"
+            }
+        }
+    }
+}
 
     stages {
         stage('Build') {
